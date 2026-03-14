@@ -1,23 +1,25 @@
-package wavlgo
+package treap
 
 import (
 	"testing"
+
+	"github.com/koneko096/godachi/internal"
 )
 
 type key int
 
-func (n key) LessThan(b interface{}) bool {
-	value, _ := b.(key)
-	return n < value
+func (n key) LessThan(b internal.KeyType) bool {
+	keyB := b.(key)
+	return n < keyB
 }
 
-func (n key) Equal(b interface{}) bool {
-	value, _ := b.(key)
-	return n == value
+func (n key) Equal(b internal.KeyType) bool {
+	keyB := b.(key)
+	return n == keyB
 }
 
 func TestPreorder(t *testing.T) {
-	tree := NewTree()
+	var tree internal.BST = NewTree()
 
 	tree.Insert(key(1), "123")
 	tree.Insert(key(3), "234")
@@ -32,7 +34,7 @@ func TestPreorder(t *testing.T) {
 }
 
 func TestFind(t *testing.T) {
-	tree := NewTree()
+	var tree internal.BST = NewTree()
 
 	tree.Insert(key(1), "123")
 	tree.Insert(key(3), "234")
@@ -60,7 +62,7 @@ func TestFind(t *testing.T) {
 }
 
 func TestIterator(t *testing.T) {
-	tree := NewTree()
+	var tree internal.BST = NewTree()
 
 	tree.Insert(key(1), "123")
 	tree.Insert(key(3), "234")
@@ -84,7 +86,7 @@ func TestIterator(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	tree := NewTree()
+	var tree internal.BST = NewTree()
 
 	tree.Insert(key(1), "123")
 	tree.Insert(key(3), "234")
@@ -99,7 +101,7 @@ func TestDelete(t *testing.T) {
 			t.Error("Delete Error")
 		}
 	}
-	
+
 	for i := 1; i <= 6; i++ {
 		if tree.Find(key(i)) != nil {
 			t.Error("Element not deleted")
@@ -109,7 +111,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestClear(t *testing.T) {
-	tree := NewTree()
+	var tree internal.BST = NewTree()
 
 	tree.Insert(key(1), "bcd4")
 	tree.Clear()
@@ -120,7 +122,7 @@ func TestClear(t *testing.T) {
 }
 
 func TestDelete3(t *testing.T) {
-	tree := NewTree()
+	var tree internal.BST = NewTree()
 	tree.Insert(key(4), "1qa")
 	tree.Insert(key(2), "2ws")
 	tree.Insert(key(3), "3ed")
@@ -141,7 +143,7 @@ func TestDelete3(t *testing.T) {
 }
 
 func TestDelete2(t *testing.T) {
-	tree := NewTree()
+	var tree internal.BST = NewTree()
 	tree.Insert(key(5), "1qa")
 	tree.Insert(key(3), "2ws")
 	tree.Insert(key(8), "3ed")
