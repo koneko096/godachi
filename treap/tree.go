@@ -19,21 +19,12 @@ func (n key) Equal(b internal.KeyType) bool {
 	return n == keyB
 }
 
-type accumulator func(x, y internal.ValueType) internal.ValueType
-type modifier func(v, x internal.ValueType)
-
 type tree struct {
 	root *node
-	acc  accumulator
-	mod  modifier
 }
 
 func NewTree() *tree {
 	return &tree{}
-}
-
-func NewRangeTree(acc accumulator, mod modifier) *tree {
-	return &tree{acc: acc, mod: mod}
 }
 
 func (t *tree) Find(key internal.KeyType) internal.ValueType {
@@ -42,6 +33,13 @@ func (t *tree) Find(key internal.KeyType) internal.ValueType {
 		return n.value
 	}
 	return nil
+}
+
+func (t *tree) Update(key internal.KeyType, value internal.ValueType) {
+	n := t.root.findnode(key)
+	if n != nil {
+		n.value = value
+	}
 }
 
 func (t *tree) FindIt(key internal.KeyType) internal.Iterator {
@@ -70,8 +68,6 @@ func (t *tree) Insert(k internal.KeyType, value internal.ValueType) {
 		priority: key(p),
 		key:      k,
 		value:    value,
-		acc:      t.acc,
-		mod:      t.mod,
 		sz:       1,
 	}
 	left, right := t.root.splitLeft(k) // keys <= k | keys > k

@@ -1,10 +1,12 @@
 # Treap
+
 Treap comes from **tree + heap** — it is a BST (Binary Search Tree) that simultaneously satisfies the heap property using randomly assigned priorities. This dual invariant gives O(log n) expected height without any explicit rebalancing.
 
 ## Core Concept
 
-### Priority
-Each node holds two values:
+### Node Structure
+
+Each node holds two keys:
 - **key** — determines BST ordering (in-order traversal gives sorted keys)
 - **priority** — assigned randomly at creation, determines heap ordering (parent's priority ≥ children's)
 
@@ -13,8 +15,9 @@ Because priorities are random and independent of keys, the resulting tree has th
 ```
 Node structure:
 ┌──────────────┐
-│  key = 5     │  ← BST property: left < 5 < right
+│  key = 5     │  ← BST property: left.key < 5 < right.key
 │  priority=91 │  ← Heap property: 91 ≥ children's priorities
+│  value       │
 │  left, right │
 └──────────────┘
 ```
@@ -22,43 +25,44 @@ Node structure:
 No adversarial input can degenerate the tree — the priorities are random, not derived from the data.
 
 ### Split
-`split(t, k)` divides the treap into two treaps:
-- **L**: the first k nodes in in-order traversal
-- **R**: the remaining nodes
 
-The key is maintained implicitly via subtree **size** fields — no key is stored.
+`splitLeft(t, k)` and `splitRight(t, k)` divide the treap into two treaps by **key value**:
 
 ```
-split(t, k):
+splitLeft(t, k)  → L: keys ≤ k  |  R: keys > k
+splitRight(t, k) → L: keys < k  |  R: keys ≥ k
+```
+
+```
+splitLeft(t, k):
   if t is null: return (null, null)
-  push_down(t)                         // flush lazy tags first
-  left_size = size(t->left)
-
-  if left_size >= k:
-    (ll, lr) = split(t->left, k)
-    t->left  = lr
+  propagate(t)                         // flush lazy tags first
+  if k < t.key:
+    (ll, lr) = splitLeft(t.left, k)
+    t.left   = lr
     update(t)
-    return (ll, t)
+    return (ll, t)                     // t goes to R
   else:
-    (rl, rr) = split(t->right, k - left_size - 1)
-    t->right = rl
+    (rl, rr) = splitLeft(t.right, k)
+    t.right  = rl
     update(t)
-    return (t, rr)
+    return (t, rr)                     // t goes to L
 ```
 
-**Example** — split `[A,B,C,D,E]` at k=2:
+**Example** — `splitLeft([1,2,3,4,5], k=3)`:
 ```
-        D(p=9)                     L=[A,B]   R=[C,D,E]
-       /      \        →
-    B(p=7)   E(p=3)
-   /    \
- A(p=2) C(p=5)
+         3(p=9)                 L=[1,2,3]   R=[4,5]
+        /      \      →
+    2(p=7)   4(p=3)
+    /            \
+ 1(p=2)        5(p=1)
 ```
 
 Time complexity: **O(log n)** expected.
 
 ### Merge
-`merge(L, R)` combines two treaps where every node in L precedes every node in R (in array order), producing a single valid treap.
+
+`merge(L, R)` combines two treaps where every key in L is less than every key in R, producing a single valid treap.
 
 The node with the higher priority becomes the new root — this preserves the heap property by construction.
 
@@ -66,25 +70,17 @@ The node with the higher priority becomes the new root — this preserves the he
 merge(L, R):
   if L is null: return R
   if R is null: return L
-
-  if L->priority > R->priority:
-    L->right = merge(L->right, R)
+  propagate(L)
+  propagate(R)
+  if L.priority > R.priority:
+    L.right = merge(L.right, R)
     update(L)
     return L
   else:
-    R->left = merge(L, R->left)
+    R.left = merge(L, R.left)
     update(R)
     return R
 ```
-
-**Example** — merge `[A,B,C]` and `[D,E]` where D has highest priority:
-```
-[A,B,C]  +  [D,E]   →       D(p=9)
-                            /      \
-                         [A,B,C]   E(p=3)
-```
-
-No rotations needed — the heap property drives the correct structure automatically.
 
 Time complexity: **O(log n)** expected.
 
@@ -93,56 +89,145 @@ Time complexity: **O(log n)** expected.
 ## Operations
 
 ### Find
+
 Standard BST search — follow left/right based on key comparison.
 
 ```
-find(t, key):
-  if t is null: return null
-  if key == t->key: return t
-  if key  < t->key: return find(t->left, key)
-  else:             return find(t->right, key)
+find(t, k):
+  if t is null:    return null
+  if k == t.key:   return t
+  if k  < t.key:   return find(t.left,  k)
+  else:             return find(t.right, k)
 ```
 
 Time complexity: **O(log n)** expected.
 
 ### Insert
-Split at the target position, create a new single-node treap, then merge everything back.
+
+Split at the target key, create a new single-node treap, then merge everything back.
 
 ```
-insert(root, i, val):
-  new_node = Node(val, random_priority, size=1)
-  (L, R)   = split(root, i)
-  root     = merge(merge(L, new_node), R)
+insert(root, k, val):
+  new_node     = Node(k, val, random_priority)
+  (L, R)       = splitRight(root, k)   // L: keys < k  |  R: keys ≥ k
+  root         = merge(merge(L, new_node), R)
 ```
 
-**Example** — insert X at index 2 in `[A,B,C,D,E]`:
-```
-split(root, 2)        →  L=[A,B],     R=[C,D,E]
-merge(L, X)           →  [A,B,X]
-merge([A,B,X], R)     →  [A,B,X,C,D,E]  ✓
-```
-
-No rebalancing step — merge naturally places the new node where its random priority dictates.
+If `k` already exists it is removed first so there are no duplicate keys.
 
 Time complexity: **O(log n)** expected.
 
 ### Delete
-Split twice to isolate the target node, discard it, then merge the remaining two parts.
+
+Split twice to isolate all nodes with the target key, discard them, then merge the remaining two parts.
 
 ```
-delete(root, i):
-  (L, mid_R) = split(root, i)      // [0..i-1]  |  [i..n-1]
-  (mid, R)   = split(mid_R, 1)     // [i]        |  [i+1..n-1]
-  // mid is now a single node — discard it
+delete(root, k):
+  (L, mid_R) = splitRight(root, k)   // L: keys < k
+  (mid, R)   = splitLeft(mid_R, k)   // mid: keys == k  |  R: keys > k
+  // discard mid
   root = merge(L, R)
 ```
 
-**Example** — delete index 2 (C) from `[A,B,C,D,E]`:
+Time complexity: **O(log n)** expected.
+
+---
+
+## Range Query (lazy propagation)
+
+`rangeTree` extends the treap with two additional operations over closed key intervals `[lo, hi]`:
+
 ```
-split(root, 2)    →  L=[A,B],   mid_R=[C,D,E]
-split(mid_R, 1)   →  mid=[C],   R=[D,E]
-discard mid
-merge(L, R)       →  [A,B,D,E]  ✓
+Node structure (range tree):
+┌──────────────┐
+│  key = 5     │
+│  priority=91 │
+│  value       │  ← point value (MergeableValue)
+│  agg         │  ← cached aggregate of entire subtree
+│  lazy        │  ← pending tag to push to children
+│  left, right │
+└──────────────┘
+```
+
+### MergeableValue
+
+All monoid semantics are encoded by the value type — the tree carries no operation-specific configuration.
+
+```
+interface MergeableValue:
+  Merge(other)       → combine two aggregates (must be associative)
+  Apply(agg, size)   → apply this tag to a subtree aggregate of given size
+  Compose(newer)     → combine two pending tags into one
+```
+
+Two example configurations:
+
+| | range-add / sum | range-assign / min |
+|---|---|---|
+| `Merge(a,b)` | `a + b` | `min(a, b)` |
+| `Apply(agg, sz)` | `agg + tag×sz` | `tag` |
+| `Compose(newer)` | `self + newer` | `newer` |
+
+### Lazy Propagation
+
+Every structural operation follows the same two-step discipline:
+
+```
+propagate(t)   // before descending:  flush lazy tag to children
+...            // structural work
+update(t)      // after ascending:    recompute sz and agg
+```
+
+`propagate` stamps the pending tag onto each child in O(1) via `applyTag`, then clears it:
+
+```
+propagate(t):
+  if t.lazy is null: return
+  applyTag(t.left,  t.lazy)
+  applyTag(t.right, t.lazy)
+  t.lazy = null
+
+applyTag(t, tag):
+  t.value = tag.Apply(t.value, 1)
+  t.agg   = tag.Apply(t.agg, t.sz)
+  t.lazy  = t.lazy == null ? tag : t.lazy.Compose(tag)
+```
+
+`update` rebuilds `agg` from the node's own value and its children's aggregates:
+
+```
+update(t):
+  t.sz  = 1 + size(t.left) + size(t.right)
+  t.agg = t.value
+  if t.left  != null: t.agg = t.left.agg.Merge(t.agg)
+  if t.right != null: t.agg = t.agg.Merge(t.right.agg)
+```
+
+### Query
+
+Returns the aggregate over all values whose keys fall in `[lo, hi]`.
+
+```
+query(root, lo, hi):
+  (l, mr) = splitRight(root, lo)   // l:  keys < lo
+  (m, r)  = splitLeft(mr, hi)      // m:  keys in [lo, hi]  |  r: keys > hi
+  result  = m.agg                  // aggregate already cached at subtree root
+  root    = merge(l, merge(m, r))
+  return result
+```
+
+Time complexity: **O(log n)** expected.
+
+### Modify
+
+Applies a tag uniformly to every node whose key falls in `[lo, hi]`.
+
+```
+modify(root, lo, hi, tag):
+  (l, mr) = splitRight(root, lo)
+  (m, r)  = splitLeft(mr, hi)
+  applyTag(m, tag)                 // O(1) — stamps tag on subtree root only
+  root    = merge(l, merge(m, r))  // propagate flushes tag lazily on descent
 ```
 
 Time complexity: **O(log n)** expected.

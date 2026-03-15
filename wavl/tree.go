@@ -23,6 +23,13 @@ func (t *tree) Find(key internal.KeyType) internal.ValueType {
 	return nil
 }
 
+func (t *tree) Update(key internal.KeyType, value internal.ValueType) {
+	n := t.root.findnode(key)
+	if n != nil {
+		n.value = value
+	}
+}
+
 func (t *tree) FindIt(key internal.KeyType) internal.Iterator {
 	n := t.root.findnode(key)
 	if n == nil {

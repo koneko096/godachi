@@ -11,7 +11,8 @@ type node struct {
 	priority            internal.KeyType
 	key                 internal.KeyType
 	value               internal.ValueType
-	lazy                internal.ValueType
+	agg                 internal.MergeableValue // cached subtree aggregate; nil in plain trees
+	lazy                internal.MergeableValue // pending lazy tag; nil = no pending update
 	acc                 accumulator
 	mod                 modifier
 	sz                  int
@@ -168,26 +169,35 @@ func merge(L, R *node) *node {
 	}
 }
 
-// TODO: revive for RMQ
-// func (t *node) propagate() {
-// 	if t.lazy.IsEmpty() {
-// 		return
-// 	} // nothing to propagate
+// propagate flushes t's lazy tag to its children without descending further.
+// Must be called at the top of splitLeft, splitRight, and merge before any
+// structural change.  No-op when lazy is nil (plain tree nodes).
+func (t *node) propagate() {
+	if t == nil || t.lazy == nil {
+		return
+	}
+	t.left.applyTag(t.lazy)
+	t.right.applyTag(t.lazy)
+	t.lazy = nil
+}
 
-// 	if !t.left.IsNil() {
-// 		t.left.val += t.lazy
-// 		t.left.sum += t.lazy * t.left.size() // if tracking range sum
-// 		t.left.lazy += t.lazy
-// 	}
-
-// 	if !t.right.IsNil() {
-// 		t.right.val += t.lazy
-// 		t.right.sum += t.lazy * t.right.size()
-// 		t.right.lazy += t.lazy
-// 	}
-
-// 	t.lazy = 0
-// }
+// applyTag stamps tag onto t in O(1) without visiting t's children.
+func (t *node) applyTag(tag internal.MergeableValue) {
+	if t == nil || tag == nil {
+		return
+	}
+	if t.agg != nil {
+		t.agg = tag.Apply(t.agg, t.sz)
+	}
+	if mv, ok := t.value.(internal.MergeableValue); ok {
+		t.value = tag.Apply(mv, 1)
+	}
+	if t.lazy == nil {
+		t.lazy = tag
+	} else {
+		t.lazy = t.lazy.Compose(tag)
+	}
+}
 
 func (t *node) update() {
 	if t == nil {
@@ -196,7 +206,17 @@ func (t *node) update() {
 
 	t.sz = 1 + t.left.size() + t.right.size()
 
-	// TODO: revive for RMQ
-	// e.g t.sum  = t.val + sum(t.left) + sum(t.right)
-	// e.g t.min  = min(t.val, min(t.left), min(t.right))
+	// Rebuild agg for range-query trees.  No-op for plain trees where
+	// value is not a MergeableValue.
+	mv, ok := t.value.(internal.MergeableValue)
+	if !ok {
+		return
+	}
+	t.agg = mv
+	if t.left != nil && t.left.agg != nil {
+		t.agg = t.left.agg.Merge(t.agg)
+	}
+	if t.right != nil && t.right.agg != nil {
+		t.agg = t.agg.Merge(t.right.agg)
+	}
 }

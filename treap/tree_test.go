@@ -21,7 +21,7 @@ func TestPreorder(t *testing.T) {
 	tree.Preorder()
 }
 
-func TestFind(t *testing.T) {
+func TestFindElement(t *testing.T) {
 	var tree internal.BST = NewTree()
 
 	tree.Insert(key(1), "123")
