@@ -101,6 +101,7 @@ func (n *node) findnode(key internal.KeyType) *node {
 	if n == nil {
 		return nil
 	}
+	n.propagate() // flush lazy so value is current before reading or descending
 	if n.key.Equal(key) {
 		return n
 	}
@@ -115,7 +116,7 @@ func (t *node) splitLeft(key internal.KeyType) (*node, *node) {
 	if t == nil {
 		return nil, nil
 	}
-	// push_down <- lazy propagation
+	t.propagate()
 	if key.LessThan(t.key) {
 		// t.key > key → t goes to R, recurse left
 		ll, lr := t.left.splitLeft(key)
@@ -136,7 +137,7 @@ func (t *node) splitRight(key internal.KeyType) (*node, *node) {
 	if t == nil {
 		return nil, nil
 	}
-	// push_down <- lazy propagation
+	t.propagate()
 	if key.LessThan(t.key) || key == t.key { // t.key >= key → t goes to R
 		ll, lr := t.left.splitRight(key)
 		t.left = lr
@@ -158,6 +159,8 @@ func merge(L, R *node) *node {
 	if R == nil {
 		return L
 	}
+	L.propagate()
+	R.propagate()
 	if R.priority.LessThan(L.priority) {
 		L.right = merge(L.right, R)
 		L.update()
@@ -208,11 +211,16 @@ func (t *node) update() {
 
 	// Rebuild agg for range-query trees.  No-op for plain trees where
 	// value is not a MergeableValue.
-	mv, ok := t.value.(internal.MergeableValue)
-	if !ok {
+	//
+	// Safe to recompute unconditionally: splitLeft, splitRight, and merge
+	// all call propagate() before descending into a node, which flushes
+	// any pending lazy tag to the children and clears it.  By the time
+	// update() is called on the way back up, t.lazy is nil, t.value is
+	// current, and each child's agg already reflects its own pending tag.
+	if _, ok := t.value.(internal.MergeableValue); !ok {
 		return
 	}
-	t.agg = mv
+	t.agg = t.value.(internal.MergeableValue)
 	if t.left != nil && t.left.agg != nil {
 		t.agg = t.left.agg.Merge(t.agg)
 	}
