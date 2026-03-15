@@ -6,18 +6,6 @@ import (
 	"github.com/koneko096/godachi/internal"
 )
 
-type key int
-
-func (n key) LessThan(b internal.KeyType) bool {
-	keyB := b.(key)
-	return n < keyB
-}
-
-func (n key) Equal(b internal.KeyType) bool {
-	keyB := b.(key)
-	return n == keyB
-}
-
 func TestPreorder(t *testing.T) {
 	var tree internal.BST = NewTree()
 
@@ -42,6 +30,7 @@ func TestFind(t *testing.T) {
 	tree.Insert(key(6), "sd4")
 	tree.Insert(key(5), "jcd4")
 	tree.Insert(key(2), "bcd4")
+	tree.Preorder()
 
 	n := tree.FindIt(key(4))
 	if n == nil {

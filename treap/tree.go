@@ -7,6 +7,18 @@ import (
 	"github.com/koneko096/godachi/internal"
 )
 
+type key int
+
+func (n key) LessThan(b internal.KeyType) bool {
+	keyB := b.(key)
+	return n < keyB
+}
+
+func (n key) Equal(b internal.KeyType) bool {
+	keyB := b.(key)
+	return n == keyB
+}
+
 type accumulator func(x, y internal.ValueType) internal.ValueType
 type modifier func(v, x internal.ValueType)
 

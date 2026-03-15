@@ -24,7 +24,11 @@ func (t *tree) Find(key internal.KeyType) internal.ValueType {
 }
 
 func (t *tree) FindIt(key internal.KeyType) internal.Iterator {
-	return t.root.findnode(key)
+	n := t.root.findnode(key)
+	if n == nil {
+		return nil
+	}
+	return n
 }
 
 func (t *tree) Empty() bool {
@@ -32,7 +36,11 @@ func (t *tree) Empty() bool {
 }
 
 func (t *tree) Iterator() internal.Iterator {
-	return t.root.minimum()
+	n := t.root.minimum()
+	if n == nil {
+		return nil
+	}
+	return n
 }
 
 func (t *tree) Size() int {
@@ -45,11 +53,22 @@ func (t *tree) Clear() {
 }
 
 func (t *tree) Insert(key internal.KeyType, value internal.ValueType) {
-	t.root = t.root.insert(&node{
+	var n *node
+	t.root, n = t.root.insert(&node{
 		key:   key,
 		value: value,
+		rank:  0,
 	}, nil)
+	if n == nil {
+		return // duplicate, nothing to rebalance
+	}
 	t.size++
+	if n.parent == nil {
+		// n is the root — no rebalancing needed
+		t.root = n
+		return
+	}
+	t.root = rebalanceInsertUp(n.parent)
 }
 
 func (t *tree) Delete(key internal.KeyType) {
@@ -58,32 +77,22 @@ func (t *tree) Delete(key internal.KeyType) {
 		return
 	}
 
+	// two children: copy successor payload, redirect deletion to successor
+	if n.left != nil && n.right != nil {
+		s := n.successor()
+		n.key = s.key
+		n.value = s.value
+		n = s // s has at most one child (right only)
+	}
+
+	// 0 or 1 child — your original logic, which is correct
 	p := n.parent
 	var r *node
-	var infix bool
 	for _, c := range []*node{n.left, n.right} {
 		if c != nil {
-			if r != nil {
-				infix = true
-			}
 			r = c
 		}
 	}
-
-	if infix {
-		r = n.successor()
-		rp := r.parent
-		go func() {
-			if n.right == r {
-				r.insertLeft(n.left)
-			} else {
-				rp.insertLeft(r.right)
-				r.insertLeft(n.left)
-				r.insertRight(rp)
-			}
-		}()
-	}
-
 	if r != nil {
 		r.parent = p
 	}
@@ -96,7 +105,15 @@ func (t *tree) Delete(key internal.KeyType) {
 	} else {
 		t.root = r
 	}
+
+	n.left, n.right, n.parent = nil, nil, nil
 	t.size--
+
+	if p == nil {
+		return
+	}
+
+	t.root = rebalanceDeleteUp(p)
 }
 
 func (t *tree) Preorder() {
